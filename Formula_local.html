@@ -1,0 +1,101 @@
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Formula export</title>
+<style>
+body{font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;max-width:1000px;margin:40px auto;padding:0 16px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.col{flex:1;min-width:300px}
+textarea{width:90%;min-height:180px;font-size:16px;font-family:ui-monospace,Consolas,monospace;border:1px solid #e5e7eb;border-radius:8px;padding:10px}
+.btn{background:#2563eb;color:#fff;border:none;border-radius:10px;padding:10px 16px;cursor:pointer}
+.btn.secondary{background:#6b7280}.btn:disabled{opacity:.5;cursor:not-allowed}
+.eq{font-size:22px;line-height:1.6;justify-content:center; }.small{color:#6b7280;font-size:12px}
+.pill{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+<!-- 重要：改为 tex-mml-chtml，使 MathJax 暴露 tex2mml 接口 -->
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head><body>
+<header>
+  <h2>Formula export<span class="pill">MathJax Preview</span></h2>
+  <div class="toolbar">
+    <button id="previewBtn" class="btn" type="button">Preview rendering</button>
+    <button id="copyBtn" class="btn" type="button">Copy MathML code</button>
+  </div>
+</header>
+
+<div class="card">
+  <div class="row">
+    <div class="col">
+      <label>LaTeX input:</label>
+      <div style="height:4px"></div>
+      <textarea id="latexBox" placeholder="在此粘贴或编辑 LaTeX（如：\\int_0^1 x^2\\,dx）。预览会自动包裹为行间公式。"></textarea>
+    </div>
+    <div class="col">
+      <label>Formula Preview:</label>
+      <div style="height:4px"></div>
+      <div id="preview" class="eq">（Click on 'Preview Rendering' to view）</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const latexBox = document.getElementById('latexBox');
+const preview   = document.getElementById('preview');
+const previewBtn= document.getElementById('previewBtn');
+const copyBtn   = document.getElementById('copyBtn');
+
+async function renderPreview(tex){
+  const body=(tex||'').trim();
+  const wrapped = body ? `$$${body}$$` : '';
+  preview.innerHTML = wrapped || '（空）';
+  if(window.MathJax && MathJax.typesetPromise){ await MathJax.typesetPromise([preview]); }
+}
+
+async function latexToMathML(tex){
+  if(!window.MathJax || !MathJax.tex2mmlPromise){
+    throw new Error('MathJax 未就绪（tex2mmlPromise 不可用）');
+  }
+  const body=(tex||'').trim();
+  if(!body) throw new Error('没有可转换的 LaTeX');
+  // 直接以 display 模式生成 MathML（不需要手动包 $$）
+  return await MathJax.tex2mmlPromise(body, {display:true});
+}
+
+async function copyText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  }catch(e){
+    // 旧浏览器/本地文件协议回退
+    const ta=document.createElement('textarea');
+    ta.value=text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+    return true;
+  }
+}
+
+previewBtn.addEventListener('click', async ()=>{
+  await renderPreview(latexBox.value);
+});
+
+copyBtn.addEventListener('click', async ()=>{
+  const tex=(latexBox.value||'').trim();
+  if(!tex){ alert('没有可转换的 LaTeX'); return; }
+  copyBtn.disabled = true;
+  try{
+    const mml = await latexToMathML(tex);
+    await copyText(mml);
+    alert('已复制 MathML 到剪贴板（长度：' + mml.length + '）');
+  }catch(err){
+    alert('复制失败：' + (err?.message||err));
+  }finally{
+    copyBtn.disabled = false;
+  }
+});
+
+// 初始示例
+latexBox.value="\\int_0^1 x^2\\,dx = \\frac{1}{3}";
+</script>
+</body></html>
